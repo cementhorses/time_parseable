@@ -45,7 +45,7 @@ do the rest.
     <%= f.text_field :published_at_string %>
 
 The field, once populated, will return a `strftime`-formatted result. You can
-choose the format (but choose wisely, it should be parse to the same result).
+choose the format (but choose wisely, it should parse to the same result).
 
     time_parseable :format => '%I:%M %p on %b %d, %Y'
 
