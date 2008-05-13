@@ -5,7 +5,7 @@ require "#{File.dirname(__FILE__)}/../init"
 
 ActiveRecord::Base.establish_connection(:adapter => 'sqlite3', :dbfile => ':memory:')
 
-begin # setup_db
+def setup_db
   ActiveRecord::Schema.define(:version => 1) do
     create_table :businessmen do |t|
       t.string :type
@@ -20,6 +20,8 @@ def teardown_db
   end
 end
 
+setup_db
+
 class Businessman < ActiveRecord::Base; end
 class ThoroughBusinessman < Businessman
   time_parseable
@@ -33,8 +35,11 @@ class WellFedSmellyBusinessman < Businessman
   validates_presence_of :ate_at
 end
 
+teardown_db
+
 class TimeParseableTest < Test::Unit::TestCase
   def setup
+    setup_db
     @busy_man  = ThoroughBusinessman.new
     @clean_man = CleanButHungryBusinessman.new
     @dirty_man = WellFedSmellyBusinessman.new
@@ -48,20 +53,26 @@ class TimeParseableTest < Test::Unit::TestCase
     assert_nil @busy_man.woke_at_string
     assert_nil @clean_man.brushed_teeth_at_string
     assert !@dirty_man.respond_to?(:showered_at_string)
-  end
+  end  
   
   def test_string_attr_writer
     assert @busy_man.respond_to?(:slept_at_string=)
+    assert !@dirty_man.respond_to?(:brushed_teeth_at_string=)
+  end
+  
+  def test_attr_accessors_not_created_for_default_timestamps
+    assert !@busy_man.respond_to?(:created_at_string)    
   end
   
   def test_parsing
-    @busy_man.woke_at_string = '5:30 AM on April 30, 2008'
-    assert ((5.seconds.ago..5.seconds.from_now) === @busy_man.woke_at) == false
-    assert_equal @busy_man.woke_at, Time.parse('5:30 AM on April 30, 2008')
+    @busy_man.woke_at_string = '4:30 AM on April 30, 2008'
+    assert !((2.seconds.ago..2.seconds.from_now) === @busy_man.woke_at)
+    assert_equal @busy_man.woke_at, Time.parse('4:30 AM on April 30, 2008')
   end
   
   def test_invalid_parsing_error
-    @clean_man.showered_at_string = 'Every morning'
+    @clean_man.showered_at_string = 'Every morning and night'
+    assert_nil @clean_man.showered_at
     assert @clean_man.errors.on(:showered_at_string)
   end
   
@@ -69,5 +80,6 @@ class TimeParseableTest < Test::Unit::TestCase
     assert !@dirty_man.valid?    
     assert @dirty_man.errors.on(:ate_at)
     assert @dirty_man.errors.on(:ate_at_string)
+    assert @clean_man.save
   end
 end

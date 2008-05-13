@@ -34,14 +34,12 @@ module CementHorses #:nodoc:
         options = args.extract_options!
         Time::DATE_FORMATS[:parseable] = options[:format] || "%I:%M %p on %b %d, %Y"
 
-        if args.empty? && self.table_exists?
-          args = self.columns.select { |c| c.type == :datetime }.map(&:name) - [:created_at, :updated_at]
+        if args.empty? && table_exists?
+          args = columns.select { |c| c.type == :datetime }.map(&:name) - [:created_at, :updated_at]
         end
 
         methods = args.inject('') do |string, field|
-          string + <<-end_eval
-            #{"attr_accessible :#{field}_string" if accessible_attributes}
-            
+          field_methods = <<-eval
             def #{field}_string
               !#{field}.blank? ? #{field}.to_s(:parseable) : nil
             end
@@ -49,37 +47,34 @@ module CementHorses #:nodoc:
             def #{field}_string=(value)
               self.#{field} = if value.strip.blank?
                 nil
-              else              
+              else
                 time = Time.parse value
-                case time
-                when 2.seconds.ago..2.seconds.from_now
-                  if value[/now/i]
-                    time
-                  else
-                    errors.add(:#{field}_string, 'is invalid')
-                    nil
-                  end
+                if time.to_s == Time.now.to_s && !value[/now/i]
+                  errors.add(:#{field}_string, 'is invalid') && nil
                 else
                   time
                 end
               end
             end
-          end_eval
+          eval
+
+          field_methods += "\nattr_accessible :#{field}_string" if accessible_attributes
+          string + field_methods
         end
 
-        methods += <<-end_eval
-          after_validation :timestamp_errors_passed_on
+        methods += <<-eval
+          after_validation :pass_along_timestamp_errors
 
           protected
 
-            def timestamp_errors_passed_on
+            def pass_along_timestamp_errors
               #{args.inspect}.each do |field|
-                errors.on(field).each do |error|
+                [*errors.on(field)].each do |error|
                   errors.add("\#{field}_string", error)
-                end if errors.on(field)
+                end
               end
             end
-        end_eval
+        eval
 
         class_eval methods, __FILE__, __LINE__
       end
