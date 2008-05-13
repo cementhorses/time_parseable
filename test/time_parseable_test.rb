@@ -26,6 +26,7 @@ class ThoroughBusinessman < Businessman
 end
 class CleanButHungryBusinessman < Businessman
   time_parseable :brushed_teeth_at, :showered_at
+  attr_accessible :brushed_teeth_at
 end
 class WellFedSmellyBusinessman < Businessman
   time_parseable :ate_at
@@ -68,5 +69,5 @@ class TimeParseableTest < Test::Unit::TestCase
     assert !@dirty_man.valid?    
     assert @dirty_man.errors.on(:ate_at)
     assert @dirty_man.errors.on(:ate_at_string)
-  end  
+  end
 end

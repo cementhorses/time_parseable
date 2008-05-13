@@ -40,7 +40,7 @@ module CementHorses #:nodoc:
 
         methods = args.inject('') do |string, field|
           string + <<-end_eval
-            attr_accessible :#{field}_string
+            #{"attr_accessible :#{field}_string" if accessible_attributes}
             
             def #{field}_string
               !#{field}.blank? ? #{field}.to_s(:parseable) : nil
