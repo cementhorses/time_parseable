@@ -20,7 +20,7 @@ def teardown_db
   end
 end
 
-setup_db
+setup_db # Make sure time_parseable has access to column information
 
 class Businessman < ActiveRecord::Base; end
 class ThoroughBusinessman < Businessman

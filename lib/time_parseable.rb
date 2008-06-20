@@ -49,7 +49,7 @@ module CementHorses #:nodoc:
                 nil
               else
                 time = Time.parse value
-                if time.to_s == Time.now.to_s && !value[/now/i]
+                if time != Time.parse(value) && !value[/now/i]
                   errors.add(:#{field}_string, 'is invalid') && nil
                 else
                   time
