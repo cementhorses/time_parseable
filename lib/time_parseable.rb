@@ -4,7 +4,7 @@ module CementHorses #:nodoc:
       base.extend ClassMethods
     end
 
-    # +time_parseable+ adds an +attr_accessor+ for parsing time for specified
+    # +time_parseable+ adds attribute accessors for parsing time for specified
     # column names or for every timestamp column (less +created_at+ and
     # +updated_at+). Invalid parsing yields errors.
     # 
@@ -24,57 +24,99 @@ module CementHorses #:nodoc:
     # 
     # Use it in a +form_for+:
     #   
-    #   <%= f.label :published_at_string %>
+    #   <%= f.label :published_at_string, 'Publish at' %>
     #   <%= f.text_field :published_at_string %>
+    # 
+    # To reduce error, divide it up into its split accessors, +date_string+
+    # and +time_string:
+    # 
+    #   <%= f.label :published_date_string, 'Publish on' %>
+    #   <%= f.text_field :published_date_string %>
+    #   <%= f.label :published_time_string, 'at' %>
+    #   <%= f.text_field :published_time_string %>
+    # 
     module ClassMethods
       # Options:
-      # * +format+ - the <tt>Time#strftime</tt> format for the +_string+
-      #   accessor
+      # * +format+ - a configurable Hash with +time+ and +date+ options, e.g.,
+      # 
+      #   time_parseable :format => { :time => "%I:%M %p", :date => "%b %d, %Y" }
+      # 
       def time_parseable(*args)
         options = args.extract_options!
-        Time::DATE_FORMATS[:parseable] = options[:format] || "%I:%M %p on %b %d, %Y"
+        format  = HashWithIndifferentAccess.new(options[:format] || {
+          :date => "%b %d, %Y", :time => "%I:%M %p"
+        })
 
         if args.empty? && table_exists?
           args = columns.select { |c| c.type == :datetime }.map(&:name) - [:created_at, :updated_at]
         end
 
         methods = args.inject('') do |string, field|
-          field_methods = <<-eval
+          string + <<-end_eval
+            #{"attr_accessible :#{field}_string" if accessible_attributes}
+            
             def #{field}_string
-              !#{field}.blank? ? #{field}.to_s(:parseable) : nil
+              #{field}.strftime("#{format[:time]} on #{format[:date]}") unless #{field}.nil?
             end
 
             def #{field}_string=(value)
               self.#{field} = if value.strip.blank?
                 nil
-              else
-                time = Time.parse value
-                if time != Time.parse(value) && !value[/now/i]
-                  errors.add(:#{field}_string, 'is invalid') && nil
+              else              
+                time = (Time.zone.parse(value) rescue Time.parse(value))
+                case time
+                when 2.seconds.ago..2.seconds.from_now
+                  if value[/now/i]
+                    time
+                  else
+                    errors.add(:#{field}_string, 'is invalid') and nil
+                  end
                 else
                   time
                 end
               end
             end
-          eval
 
-          field_methods += "\nattr_accessible :#{field}_string" if accessible_attributes
-          string + field_methods
+            def #{field.to_s.sub(/(at|on)$/, 'date')}_string
+              #{field}.strftime("#{format[:date]}") unless #{field}.nil?
+            end
+
+            def #{field.to_s.sub(/(at|on)$/, 'date')}_string=(value)
+              @#{field.to_s.sub(/(at|on)$/, 'date')}_string = value
+              unless @#{field.to_s.sub(/(at|on)$/, 'time')}_string.nil?
+                self.#{field}_string = @#{field.to_s.sub(/(at|on)$/, 'time')}_string +
+                  ' on ' + @#{field.to_s.sub(/(at|on)$/, 'date')}_string
+              end
+            end
+
+            def #{field.to_s.sub(/(at|on)$/, 'time')}_string
+              #{field}.strftime("#{format[:time]}") unless #{field}.nil?
+            end
+
+            def #{field.to_s.sub(/(at|on)$/, 'time')}_string=(value)
+              @#{field.to_s.sub(/(at|on)$/, 'time')}_string = value
+              unless @#{field.to_s.sub(/(at|on)$/, 'date')}_string.nil?
+                self.#{field}_string = @#{field.to_s.sub(/(at|on)$/, 'time')}_string +
+                  ' on ' + @#{field.to_s.sub(/(at|on)$/, 'date')}_string
+              end
+            end
+          end_eval
         end
 
-        methods += <<-eval
-          after_validation :pass_along_timestamp_errors
+        methods += <<-end_eval
+          after_validation :timestamp_errors_passed_on
 
           protected
 
-            def pass_along_timestamp_errors
+            def timestamp_errors_passed_on
               #{args.inspect}.each do |field|
-                [*errors.on(field)].each do |error|
+                errors.on(field).each do |error|
                   errors.add("\#{field}_string", error)
-                end
+                  errors.add("\#{field.to_s.sub(/(at|on)$/, 'date')}_string", error)
+                end if errors.on(field)
               end
             end
-        eval
+        end_eval
 
         class_eval methods, __FILE__, __LINE__
       end

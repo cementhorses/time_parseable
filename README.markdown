@@ -41,13 +41,26 @@ We've fixed it, and added some validation.
 Now, all you have to do is throw it in a `form_for`, and `time_parseable` will
 do the rest.
     
-    <%= f.label :published_at_string %>
+    <%= f.label :published_at_string, 'Publish at' %>
     <%= f.text_field :published_at_string %>
 
-The field, once populated, will return a `strftime`-formatted result. You can
+We should probably mention that you can reduce user error by dividing the task
+into bite-sized pieces:
+
+    <%= f.label :published_date_string, 'Publish on' %>
+    <%= f.text_field :published_date_string %>
+    <%= f.label :published_time_string, 'at' %>
+    <%= f.text_field :published_time_string %>
+
+Yes, `published_date_string` and `published_time_string` get created with the
+rest.
+
+The fields, once populated, will return a `strftime`-formatted result. You can
 choose the format (but choose wisely, it should parse to the same result).
 
-    time_parseable :format => '%I:%M %p on %b %d, %Y'
+    time_parseable :format => {
+      :date => "%m/%d/%Y", :time => "%I:%M%p"
+    }
 
 
-Copyright (c) 2008 Cement Horses, released under the MIT license
+Copyright (c) 2008-* Cement Horses, released under the MIT license.
